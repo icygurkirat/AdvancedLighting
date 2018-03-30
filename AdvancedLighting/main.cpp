@@ -33,7 +33,6 @@ void resize(GLFWwindow* window, int width, int height);
 void render();
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 Shader currShader;
-//Model model;
 Camera camera;
 
 
@@ -57,16 +56,10 @@ struct ModMat {
 		matrix = glm::rotate(matrix, glm::radians(thetay), glm::vec3(0.0, 1.0, 0.0));
 		matrix = glm::rotate(matrix, glm::radians(thetax), glm::vec3(1.0, 0.0, 0.0));
 		matrix = glm::scale(matrix, glm::vec3(scale));
-		cout << "-------------------" << endl;
-		cout << "Scale = " << scale << endl;
-		cout << "theta = (" << thetax << ", " << thetay << ", " << thetaz << ")\n";
-		cout << "Pos = (" << x << ", " << y << ", " << z << ")\n";
 	}
 };
 
-int curr = 3;
-
-ModMat models[5];
+ModMat models[4];
 
 
 void processInput(GLFWwindow *window) {
@@ -80,70 +73,12 @@ void processInput(GLFWwindow *window) {
 		camera.ProcessKeyboard(LEFT, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		camera.ProcessKeyboard(RIGHT, deltaTime);
-	if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
-		models[curr].scale += 0.01;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_Y) == GLFW_PRESS) {
-		models[curr].scale -= 0.1;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_U) == GLFW_PRESS) {
-		models[curr].thetax += 15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
-		models[curr].thetax -= 15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
-		models[curr].thetay += 15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
-		models[curr].thetay -= 15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS) {
-		models[curr].thetaz += 15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS) {
-		models[curr].thetaz -= 15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS) {
-		models[curr].x += 0.15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS) {
-		models[curr].x -= 0.15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS) {
-		models[curr].y += 0.15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) {
-		models[curr].y -= 0.15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS) {
-		models[curr].z += 0.15;
-		models[curr].update();
-	}
-	if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS) {
-		models[curr].z -= 0.15;
-		models[curr].update();
-	}
 }
 
 int main() {
 	init();
 
 	//Initializing the transformation matrices:-
-
-
 	glm::mat4 view = camera.GetViewMatrix();
 	currShader.setMatf4("view", glm::value_ptr(view));
 
