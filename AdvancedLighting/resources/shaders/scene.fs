@@ -16,10 +16,10 @@ uniform Material material;
 
 void main()
 {    
-    // store the fragment position vector in the first gbuffer texture
+    // per-fragment position vector
     gPosition = FragPos;
-    // also store the per-fragment normals into the gbuffer
+    // per-fragment normal vector
     gNormal = normalize(Normal);
-    // and the diffuse per-fragment color
+    // per-fragment diffuse color
     gAlbedo.rgb = texture(material.texture_diffuse1,TexCoords).rgb;
 }

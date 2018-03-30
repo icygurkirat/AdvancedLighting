@@ -7,8 +7,6 @@ out vec3 FragPos;
 out vec3 Normal;
 out vec2 TexCoords;
 
-uniform bool invertedNormals;
-
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
@@ -20,8 +18,9 @@ void main()
     vec4 viewPos = trans * vec4(aPos, 1.0);
     FragPos = viewPos.xyz; 
     
-    //mat3 normalMatrix = transpose(inverse(mat3(view * model)));
-    Normal = mat3(trans) * (invertedNormals ? -aNormal : aNormal);
+    //as all transformations are global scaling or translation or rotation, we can directly
+    //multiply by this matrix to get normal vector. else multiply by transpose((trans)^-1)
+    Normal = mat3(trans) * aNormal;
 
 	TexCoords = aTexCoords;
     

@@ -239,19 +239,19 @@ void render() {
 	glm::mat4 view = camera.GetViewMatrix();
 	sceneShader.use();
 	sceneShader.setMatf4("view", glm::value_ptr(view));
-	// room cube
-	glm::mat4 model = glm::mat4();
-	sceneShader.setMatf4("model", glm::value_ptr(models[0].matrix));
-	sceneShader.setInt("invertedNormals", 1); // inside of the cube will have inverted normals
-	models[0].model.Draw(sceneShader);
-	// nanosuit, dresser and deagle models 
-	sceneShader.setInt("invertedNormals", 0);
+	// nanosuit and dresser models 
+	glEnable(GL_CULL_FACE);
 	sceneShader.setMatf4("model", glm::value_ptr(models[1].matrix));
 	models[1].model.Draw(sceneShader);
 	sceneShader.setMatf4("model", glm::value_ptr(models[2].matrix));
 	models[2].model.Draw(sceneShader);
+	// room cube and deagle
+	glDisable(GL_CULL_FACE);
+	sceneShader.setMatf4("model", glm::value_ptr(models[0].matrix));
+	models[0].model.Draw(sceneShader);
 	sceneShader.setMatf4("model", glm::value_ptr(models[3].matrix));
 	models[3].model.Draw(sceneShader);
+	
 
 	
 
