@@ -64,7 +64,7 @@ struct ModMat {
 	}
 };
 
-int curr = 0;
+int curr = 3;
 
 ModMat models[5];
 
@@ -81,7 +81,7 @@ void processInput(GLFWwindow *window) {
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		camera.ProcessKeyboard(RIGHT, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
-		models[curr].scale += 0.1;
+		models[curr].scale += 0.01;
 		models[curr].update();
 	}
 	if (glfwGetKey(window, GLFW_KEY_Y) == GLFW_PRESS) {
@@ -142,8 +142,6 @@ int main() {
 	init();
 
 	//Initializing the transformation matrices:-
-	glm::mat4 model1 = glm::mat4();
-	currShader.setMatf4("model", glm::value_ptr(models[curr].matrix));
 
 
 	glm::mat4 view = camera.GetViewMatrix();
@@ -199,9 +197,33 @@ void init() {
 
 	//Loading all the models:-
 	models[0] = ModMat("resources\\3D_Models\\Box\\box.obj");
-	//models[1] = ModMat("resources\\3D_Models\\nanoSuit\\nanosuit.obj");
-	//models[2] = ModMat("resources\\3D_Models\\eb_dresser_01\\eb_dresser_01.obj");
-	//models[3] = ModMat("resources\\3D_Models\\Deagle\\deagle.obj");
+	models[0].scale = 7.0f;
+	models[0].update();
+
+	models[1] = ModMat("resources\\3D_Models\\nanoSuit\\nanosuit.obj");
+	models[1].scale = 0.3f;
+	models[1].thetay = -90.0f;
+	models[1].x = 1.8f;
+	models[1].y = -3.45f;
+	models[1].z = 1.95f;
+	models[1].update();
+
+	models[2] = ModMat("resources\\3D_Models\\eb_dresser_01\\eb_dresser_01.obj");
+	models[2].scale = 0.0200007f;
+	models[2].x = -1.2f;
+	models[2].y = -3.45f;
+	models[2].z = -3.3f;
+	models[2].update();
+
+	models[3] = ModMat("resources\\3D_Models\\Deagle\\deagle.obj");
+	models[3].scale = -0.0900013f;
+	models[3].thetax = 45.0f;
+	models[3].thetaz = -90.0f;
+	models[3].x = -1.2f;
+	models[3].y = -1.35f;
+	models[3].z = -2.7f;
+	models[3].update();
+
 	//models[4] = ModMat("resources\\3D_Models\\Chair\\chair.obj");
 
 
@@ -258,8 +280,17 @@ void render() {
 	currShader.setMatf4("view", glm::value_ptr(view));
 	currShader.setVec3("viewPos", camera.Position.x, camera.Position.y, camera.Position.z);
 
-	currShader.setMatf4("model", glm::value_ptr(models[curr].matrix));
-	models[curr].model.Draw(currShader);
+	currShader.setMatf4("model", glm::value_ptr(models[0].matrix));
+	models[0].model.Draw(currShader);
+
+	currShader.setMatf4("model", glm::value_ptr(models[1].matrix));
+	models[1].model.Draw(currShader);
+
+	currShader.setMatf4("model", glm::value_ptr(models[2].matrix));
+	models[2].model.Draw(currShader);
+
+	currShader.setMatf4("model", glm::value_ptr(models[3].matrix));
+	models[3].model.Draw(currShader);
 
 	
 	glfwPollEvents();
