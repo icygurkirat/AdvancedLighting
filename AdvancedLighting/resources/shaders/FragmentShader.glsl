@@ -45,5 +45,5 @@ void main()
     FragColor = vec4(result, 1.0);
 
 
-	//FragColor = vec4(vec3(texture(material.texture_diffuse1, TexCoords)), 1.0);
+	FragColor = vec4(vec3(texture(material.texture_diffuse1, TexCoords)), 1.0);
 }

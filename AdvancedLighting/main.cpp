@@ -33,8 +33,40 @@ void resize(GLFWwindow* window, int width, int height);
 void render();
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 Shader currShader;
-Model model;
+//Model model;
 Camera camera;
+
+
+struct ModMat {
+	float scale, thetax, thetay, thetaz;
+	float x, y, z;
+	glm::mat4 matrix;
+	Model model;
+	ModMat(string path) {
+		scale = 1.0; thetax = 0; thetay = 0; thetaz = 0;
+		x = 0; y = 0; z = 0;
+		matrix = glm::mat4();
+		model = Model(&path[0]);
+	}
+	ModMat(){}
+	
+	void update() {
+		matrix = glm::mat4();
+		matrix = glm::translate(matrix, glm::vec3(x, y, z));
+		matrix = glm::rotate(matrix, glm::radians(thetaz), glm::vec3(0.0, 0.0, 1.0));
+		matrix = glm::rotate(matrix, glm::radians(thetay), glm::vec3(0.0, 1.0, 0.0));
+		matrix = glm::rotate(matrix, glm::radians(thetax), glm::vec3(1.0, 0.0, 0.0));
+		matrix = glm::scale(matrix, glm::vec3(scale));
+		cout << "-------------------" << endl;
+		cout << "Scale = " << scale << endl;
+		cout << "theta = (" << thetax << ", " << thetay << ", " << thetaz << ")\n";
+		cout << "Pos = (" << x << ", " << y << ", " << z << ")\n";
+	}
+};
+
+int curr = 0;
+
+ModMat models[5];
 
 
 void processInput(GLFWwindow *window) {
@@ -48,6 +80,62 @@ void processInput(GLFWwindow *window) {
 		camera.ProcessKeyboard(LEFT, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		camera.ProcessKeyboard(RIGHT, deltaTime);
+	if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
+		models[curr].scale += 0.1;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_Y) == GLFW_PRESS) {
+		models[curr].scale -= 0.1;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_U) == GLFW_PRESS) {
+		models[curr].thetax += 15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
+		models[curr].thetax -= 15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
+		models[curr].thetay += 15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+		models[curr].thetay -= 15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS) {
+		models[curr].thetaz += 15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS) {
+		models[curr].thetaz -= 15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS) {
+		models[curr].x += 0.15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS) {
+		models[curr].x -= 0.15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS) {
+		models[curr].y += 0.15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) {
+		models[curr].y -= 0.15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS) {
+		models[curr].z += 0.15;
+		models[curr].update();
+	}
+	if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS) {
+		models[curr].z -= 0.15;
+		models[curr].update();
+	}
 }
 
 int main() {
@@ -55,7 +143,7 @@ int main() {
 
 	//Initializing the transformation matrices:-
 	glm::mat4 model1 = glm::mat4();
-	currShader.setMatf4("model", glm::value_ptr(model1));
+	currShader.setMatf4("model", glm::value_ptr(models[curr].matrix));
 
 
 	glm::mat4 view = camera.GetViewMatrix();
@@ -109,8 +197,14 @@ void init() {
 	camera = Camera(0.0f, 0.0f, 3.0f, 0.0f, 1.0f, 0.0f, -90.0f, 0.0f);
 	camera.MovementSpeed = 5.0f;
 
-	string location = "resources\\3D_Models\\nanoSuit\\nanosuit.obj";
-	model = Model(&location[0]);
+	//Loading all the models:-
+	models[0] = ModMat("resources\\3D_Models\\Box\\box.obj");
+	//models[1] = ModMat("resources\\3D_Models\\nanoSuit\\nanosuit.obj");
+	//models[2] = ModMat("resources\\3D_Models\\eb_dresser_01\\eb_dresser_01.obj");
+	//models[3] = ModMat("resources\\3D_Models\\Deagle\\deagle.obj");
+	//models[4] = ModMat("resources\\3D_Models\\Chair\\chair.obj");
+
+
 	currShader = Shader("resources\\shaders\\VertexShader.glsl", "resources\\shaders\\FragmentShader.glsl");
 	currShader.use();
 
@@ -160,13 +254,14 @@ void render() {
 	lightPos.z = 5.0f*sin(timeValue);
 	
 	glm::mat4 view = camera.GetViewMatrix();
+	currShader.setVec3("light.position", lightPos.x, lightPos.y, lightPos.z);
 	currShader.setMatf4("view", glm::value_ptr(view));
 	currShader.setVec3("viewPos", camera.Position.x, camera.Position.y, camera.Position.z);
-	model.Draw(currShader);
-	currShader.setVec3("light.position", lightPos.x, lightPos.y, lightPos.z);
 
-	glDrawArrays(GL_TRIANGLES, 0, 3);
+	currShader.setMatf4("model", glm::value_ptr(models[curr].matrix));
+	models[curr].model.Draw(currShader);
 
+	
 	glfwPollEvents();
 	glfwSwapBuffers(window);
 }
