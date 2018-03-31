@@ -1,6 +1,6 @@
 #define TITLE "Advanced Lighting"
 #define STB_IMAGE_IMPLEMENTATION
-#define SSAOKernels 50
+#define SSAOKernels 25
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -20,6 +20,7 @@ using namespace std;
 int Width = 2000, Height = 2000;
 GLFWwindow* window;
 unsigned int quadVAO, quadVBO;	//quad for deferred shading
+unsigned int kernelSBO;			//SBO for storing kernel samples
 //SSAO Variables:-
 //SSAO first pass: frame buffer and its data
 unsigned int gbufferFBO, gPosition, gNormal, gAlbedo;	
@@ -34,7 +35,7 @@ float mouseX = 0.0f;
 float mouseY = 0.0f;
 bool firstMouse = true;
 
-glm::vec3 lightPos(1.2f, 10.0f, 2.0f);
+glm::vec4 lightPos(1.2f, 10.0f, 2.0f, 1.0f);
 
 
 void init();
@@ -42,6 +43,7 @@ void resize(GLFWwindow* window, int width, int height);
 void render();
 void CreateVBO();
 void initFBO();
+void initUniforms();
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 float lerp(float a, float b, float f);
 Shader sceneShader, SSAOShader, blurShader, lightingShader, dispShader;
@@ -90,23 +92,7 @@ void processInput(GLFWwindow *window) {
 int main() {
 	init();
 	initFBO();
-
-	//Initializing the transformation matrices:-
-	sceneShader.use();
-	glm::mat4 model = glm::mat4();
-	sceneShader.setMatf4("model", glm::value_ptr(model));
-
-	glm::mat4 view = camera.GetViewMatrix();
-	sceneShader.setMatf4("view", glm::value_ptr(view));
-
-	glm::mat4 projection = glm::perspective(glm::radians(45.0f), ((float)Width) / Height, 0.1f, 100.0f);
-	sceneShader.setMatf4("projection", glm::value_ptr(projection));
-
-	SSAOShader.use();
-	SSAOShader.setMatf4("projection", glm::value_ptr(projection));
-	SSAOShader.setInt("gPosition", 0);
-	SSAOShader.setInt("gNormal", 1);
-	SSAOShader.setInt("texNoise", 2);
+	initUniforms();
 
 	//rendering loop
 	while (!glfwWindowShouldClose(window)) {
@@ -160,8 +146,8 @@ void init() {
 
 	sceneShader = Shader("resources\\shaders\\scene.vs", "resources\\shaders\\scene.fs");
 	SSAOShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\ssao.fs");
-	//blurShader = Shader("ssao.vs", "blur.fs");
-	//lightingShader = Shader("ssao.vs", "lighting.fs");
+	blurShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\blur.fs");
+	lightingShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\lighting.fs");
 	dispShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\drawQuad.fs");
 
 	//Loading all the models:-
@@ -269,14 +255,42 @@ void render() {
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 
-	//PHASE LAST: Displaying on quad:-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindVertexArray(quadVAO);
+	//PHASE 3: SSAO Blur stage:-
+	glBindFramebuffer(GL_FRAMEBUFFER, ssaoBlurFBO);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, ssaoColorBuffer);
+	blurShader.use();
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+
+	//PHASE 4: Blinn-Phong illumination:- 
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, gPosition);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, gNormal);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, gAlbedo);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
+	lightingShader.use();
+	glm::vec4 temp = camera.GetViewMatrix()*lightPos;
+	temp /= temp.w;
+	lightingShader.setVec3("lightPos", temp.x, temp.y, temp.z);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glfwPollEvents();
+	glfwSwapBuffers(window);
+	return;
+
+
+	//PHASE LAST: Displaying on quad:-
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
 	dispShader.use();
-	dispShader.setInt("albedo", 0);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 	
@@ -348,11 +362,15 @@ void initFBO() {
 
 
 	//PHASE 2: Aplying SSAO:-
+	//UBO for storing kernel samples
+	glGenBuffers(1, &kernelSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, kernelSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, SSAOKernels * 4 * sizeof(float), NULL, GL_STATIC_DRAW);
 	//generating sample kernels:-
 	uniform_real_distribution<float> randomFloats(0.0, 1.0); // random floats between 0.0 - 1.0
 	default_random_engine generator;
 	SSAOShader.use();
-	for (unsigned int i = 0; i < 50; ++i) {
+	for (unsigned int i = 0; i < SSAOKernels; ++i) {
 		glm::vec3 sample(
 			randomFloats(generator) * 2.0 - 1.0,
 			randomFloats(generator) * 2.0 - 1.0,
@@ -360,10 +378,10 @@ void initFBO() {
 		);
 		sample = glm::normalize(sample);
 		sample *= randomFloats(generator);
-		float scale = (float)i / 50.0;
+		float scale = ((float)i) / SSAOKernels;
 		scale = lerp(0.1f, 1.0f, scale * scale);
 		sample *= scale;
-		SSAOShader.setVec3("samples[" + to_string(i) + "]", sample.x, sample.y, sample.z);
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, i * 4 * sizeof(float), 3 * sizeof(float), glm::value_ptr(sample));
 	}
 
 	std::vector<glm::vec3> ssaoNoise;
@@ -394,7 +412,7 @@ void initFBO() {
 
 
 	//PHASE 3: blur stage
-	/*glGenFramebuffers(1, &ssaoBlurFBO);
+	glGenFramebuffers(1, &ssaoBlurFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, ssaoBlurFBO);
 	glGenTextures(1, &ssaoColorBufferBlur);
 	glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
@@ -404,10 +422,51 @@ void initFBO() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoColorBufferBlur, 0);
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 	cout << "SSAO Blur Framebuffer not complete!" << endl;
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);*/
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 float lerp(float a, float b, float f) {
 	//linear interpolation
 	return a + f * (b - a);
+}
+
+void initUniforms() {
+	//Initializing the transformation matrices:-
+	sceneShader.use();
+	glm::mat4 model = glm::mat4();
+	sceneShader.setMatf4("model", glm::value_ptr(model));
+
+	glm::mat4 view = camera.GetViewMatrix();
+	sceneShader.setMatf4("view", glm::value_ptr(view));
+
+	glm::mat4 projection = glm::perspective(glm::radians(45.0f), ((float)Width) / Height, 0.1f, 100.0f);
+	sceneShader.setMatf4("projection", glm::value_ptr(projection));
+
+	SSAOShader.use();
+	SSAOShader.setMatf4("projection", glm::value_ptr(projection));
+	SSAOShader.setInt("gPosition", 0);
+	SSAOShader.setInt("gNormal", 1);
+	SSAOShader.setInt("texNoise", 2);
+	SSAOShader.setInt("kernelSize", SSAOKernels);
+	// tile noise texture over screen based on screen dimensions divided by noise size
+	SSAOShader.setVec2("noiseScale", Width / 4.0, Height / 4.0);
+	SSAOShader.setFloat("radius", 0.5);		//Kernel radius
+	SSAOShader.setFloat("eps", 0.025);		//float comparison epsilon
+
+	blurShader.use();
+	blurShader.setInt("blurKernal", 4);
+	blurShader.setInt("ssao", 0);
+
+	dispShader.use();
+	dispShader.setInt("albedo", 0);
+
+	lightingShader.use();
+	lightingShader.setInt("gPosition", 0);
+	lightingShader.setInt("gNormal", 1);
+	lightingShader.setInt("gAlbedo", 2);
+	lightingShader.setInt("ssao", 3);
+
+
+	glBindVertexArray(quadVAO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, kernelSBO);
 }

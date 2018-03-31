@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 out float FragColor;
 
 in vec2 TexCoords;
@@ -7,14 +7,14 @@ uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D texNoise;
 
-uniform vec3 samples[50];
+layout (std430, binding = 1) buffer ubo{
+	vec4 kernels[];
+};
 uniform mat4 projection;
-
-// tile noise texture over screen based on screen dimensions divided by noise size
-const vec2 noiseScale = vec2(2000.0/4.0, 2000.0/4.0); // screen = 2000x2000
-const float radius = 0.5;
-const float bias = 0.025;
-const int kernelSize = 50;
+uniform int kernelSize;
+uniform vec2 noiseScale;
+uniform float radius;
+uniform float eps;
 
 void main()
 {
@@ -29,10 +29,10 @@ void main()
 	float occlusion = 0.0;
 	for(int i = 0; i < kernelSize; ++i){
 		// get sample position
-		vec3 sample = TBN * samples[i]; // From tangent to view-space
-		sample = fragPos + sample * radius; 
+		vec3 kernel = TBN * kernels[i].xyz; // From tangent to view-space
+		kernel = fragPos + kernel * radius; 
     
-		vec4 offset = vec4(sample, 1.0);
+		vec4 offset = vec4(kernel, 1.0);
 		offset      = projection * offset;    // from view to clip-space
 		offset.xyz /= offset.w;               // perspective divide
 		offset.xyz  = offset.xyz * 0.5 + 0.5; // transform to range 0.0 - 1.0  
@@ -40,7 +40,7 @@ void main()
 		float sampleDepth = texture(gPosition, offset.xy).z; 
 
 		float rangeCheck = smoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth));
-		occlusion += (sampleDepth >= sample.z + bias ? 1.0 : 0.0) * rangeCheck; 
+		occlusion += (sampleDepth >= kernel.z + eps ? 1.0 : 0.0) * rangeCheck; 
 	}  
 
 	occlusion = 1.0 - (occlusion / kernelSize);

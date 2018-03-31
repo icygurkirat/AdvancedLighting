@@ -170,6 +170,10 @@ public:
 		//std::cout << name.c_str() << ": " << glGetUniformLocation(ID, name.c_str()) << std::endl;
 		glUniform3f(glGetUniformLocation(ID, name.c_str()), v1, v2, v3);
 	}
+	void setVec2(const std::string &name, float v1, float v2) const
+	{
+		glUniform2f(glGetUniformLocation(ID, name.c_str()), v1, v2);
+	}
 	void setBlockBinding(const std::string &name, int value)
 	{
 		glUniformBlockBinding(ID, glGetUniformBlockIndex(ID, name.c_str()), value);
