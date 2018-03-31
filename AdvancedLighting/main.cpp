@@ -12,6 +12,7 @@
 #include <iostream>
 #include <string>
 #include <random>
+#include <fstream>
 
 using namespace std;
 
@@ -43,6 +44,7 @@ bool firstMouse = true;
 
 glm::vec3 lightPos(2.9f, 2.9f, 0.0f);
 int arg = 0, argTex;
+bool arg1 = true, arg2 = true;
 
 
 void init();
@@ -104,6 +106,26 @@ void processInput(GLFWwindow *window) {
 		arg = 2;
 	if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
 		arg = 3;
+	if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
+		arg1 = true;
+		lightingShader.use();
+		lightingShader.setBool("arg1", arg1);
+	}
+	if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) {
+		arg1 = false;
+		lightingShader.use();
+		lightingShader.setBool("arg1", arg1);
+	}
+	if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS) {
+		arg2 = true;
+		lightingShader.use();
+		lightingShader.setBool("arg2", arg2);
+	}
+	if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS) {
+		arg2 = false;
+		lightingShader.use();
+		lightingShader.setBool("arg2", arg2);
+	}
 	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
 		cout << "# of kernels: " << SSAOKernels << "\t Kernel radius: " << ssaoRadius;
 		cout << "\t Float comparison epsilon: " << ssaoEps << endl;
@@ -141,6 +163,16 @@ void processInput(GLFWwindow *window) {
 }
 
 int main() {
+	ifstream file;
+	file.open("resources\\args.txt");
+	file >> Width;
+	file >> Height;
+	file >> shadowWidth;
+	shadowHeight = shadowWidth;
+	cout << "Screen Size: " << Width << "x" << Height << endl;
+	cout << "Shadow Map resolution: " << shadowWidth << "x" << shadowHeight << endl;
+	file.close();
+
 	init();
 	cout << "Creating FrameBuffers for multiple shader passes...";
 	initFBO();
@@ -154,6 +186,10 @@ int main() {
 	cout << "[1]: Gbuffer albedo pass. Simply displays the 3D models" << endl;
 	cout << "[2]: SSAO shader pass. Dark regions represent occlusion" << endl;
 	cout << "[3]: SSAO Blur pass. Blurring of SSAO Frame buffer" << endl;
+	cout << "[4]: Enable SSAO" << endl;
+	cout << "[5]: Disbale SSAO" << endl;
+	cout << "[6]: Enable Shadows" << endl;
+	cout << "[7]: Disable Shadows" << endl;
 	cout << "[P]: Change SSAO parameters" << endl;
 	cout << "Illumination params can be changed directly in lighting.fs shader file" << endl;
 	cout << "---------------------------------------------------" << endl;
@@ -289,27 +325,8 @@ void render() {
 	lightPos.z = 2.9f*sin(timeValue);
 	glm::mat4 view = camera.GetViewMatrix();
 	glm::vec3 viewPos = camera.Position;
-
+	
 	vector<glm::mat4> shadowTransforms;
-	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
-	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
-	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
-	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)));
-	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
-	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
-
-
-
-	//PHASE 0: Rendering to shadow map
-	glViewport(0, 0, shadowWidth, shadowHeight);
-	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-	glClear(GL_DEPTH_BUFFER_BIT);
-	shadowShader.use();
-	for (unsigned int i = 0; i < 6; ++i)
-		shadowShader.setMatf4("shadowMatrices[" + std::to_string(i) + "]", glm::value_ptr(shadowTransforms[i]));
-	shadowShader.setVec3("lightPos", lightPos.x, lightPos.y, lightPos.z);
-	drawScene(shadowShader);
-
 
 
 	//PHASE 1: Render the scene geometry to GBUFFER
@@ -328,6 +345,8 @@ void render() {
 		glBindVertexArray(quadVAO);
 		goto PHASE_LAST;
 	}
+	if (!arg1)
+		goto PHASE_SHADOW;
 	
 
 	
@@ -367,8 +386,31 @@ void render() {
 	}
 
 
-	//PHASE 4: Blinn-Phong illumination:- 
+PHASE_SHADOW:
+	if (!arg2)
+		goto PHASE_PHONG;
+	//PHASE 4: Rendering to shadow map
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+	glViewport(0, 0, shadowWidth, shadowHeight);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	shadowShader.use();
+	for (unsigned int i = 0; i < 6; ++i)
+		shadowShader.setMatf4("shadowMatrices[" + std::to_string(i) + "]", glm::value_ptr(shadowTransforms[i]));
+	shadowShader.setVec3("lightPos", lightPos.x, lightPos.y, lightPos.z);
+	drawScene(shadowShader);
+
+
+PHASE_PHONG:
+	//Blinn-Phong illumination:- 
+	glViewport(0, 0, Width, Height);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindVertexArray(quadVAO);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, gPositionModel);
@@ -598,6 +640,8 @@ void initUniforms() {
 	lightingShader.setInt("ssao", 3);
 	lightingShader.setInt("shadowMap", 4);
 	lightingShader.setFloat("farPlane", 25.0f);
+	lightingShader.setBool("arg1", arg1);
+	lightingShader.setBool("arg2", arg2);
 
 
 	glBindVertexArray(quadVAO);

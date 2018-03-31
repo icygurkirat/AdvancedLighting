@@ -14,6 +14,9 @@ uniform vec3 viewPos;
 
 uniform float farPlane;
 
+uniform bool arg1;
+uniform bool arg2;
+
 void main()
 {             
     // retrieve data from gbuffer (deferred shading pass)
@@ -22,7 +25,7 @@ void main()
     vec3 albedo = texture(gAlbedo, TexCoords).rgb;
 
     //occlusion from ssao pass
-    float AmbientOcclusion = texture(ssao, TexCoords).r;
+    float AmbientOcclusion = arg1? texture(ssao, TexCoords).r : 1.0;
     
 
     // blinn-phong:-
@@ -37,6 +40,11 @@ void main()
     vec3 halfwayDir = normalize(lightDir + viewDir);  
     float spec = pow(max(dot(Normal, halfwayDir), 0.0), 8.0);
     vec3 specular = vec3(0.2f, 0.2f, 0.2f) * spec;
+
+    if(!arg2){
+    	FragColor = vec4( (ambient + diffuse /*+ specular*/), 1.0);
+    	return;
+    }
 
 
     //shadow calculation:-
