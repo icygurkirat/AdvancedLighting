@@ -22,7 +22,7 @@ unsigned int quadVAO, quadVBO;	//quad for deferred shading
 unsigned int kernelSBO;			//SBO for storing kernel samples
 //SSAO Variables:-
 //SSAO first pass: frame buffer and its data
-unsigned int gbufferFBO, gPosition, gNormal, gAlbedo;	
+unsigned int gbufferFBO, gPosition, gNormal, gAlbedo, gPositionModel;	
 //SSAO second and third pass:-
 unsigned int ssaoFBO, ssaoBlurFBO;
 unsigned int ssaoColorBuffer, ssaoColorBufferBlur;
@@ -30,6 +30,10 @@ unsigned int noiseTexture;	//random rotation vectors to reduce banding
 //SSAO shader params;
 float ssaoRadius = 0.5f, ssaoEps = 0.025f;
 int SSAOKernels = 25;
+//Shadow map variables
+unsigned int shadowCubeMap, shadowFBO;
+unsigned int shadowWidth = Width, shadowHeight = Height;
+glm::mat4 shadowProj;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -37,7 +41,7 @@ float mouseX = 0.0f;
 float mouseY = 0.0f;
 bool firstMouse = true;
 
-glm::vec4 lightPos(3.2f, 3.2f, 0.0f, 1.0f);
+glm::vec3 lightPos(2.0f, 2.0f, 0.0f);
 int arg = 0, argTex;
 
 
@@ -48,9 +52,10 @@ void CreateVBO();
 void initFBO();
 void initUniforms();
 void generateKernels();
+void drawScene(Shader shader);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 float lerp(float a, float b, float f);
-Shader sceneShader, SSAOShader, blurShader, lightingShader, dispShader;
+Shader sceneShader, SSAOShader, blurShader, lightingShader, dispShader, shadowShader;
 Camera camera;
 
 
@@ -212,6 +217,7 @@ void init() {
 	blurShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\blur.fs");
 	lightingShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\lighting.fs");
 	dispShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\drawQuad.fs");
+	shadowShader = Shader("resources\\shaders\\shadow.vs", "resources\\shaders\\shadow.fs", "resources\\shaders\\shadow.gs");
 	cout << "DONE\n";
 
 	//Loading all the models:-
@@ -279,32 +285,42 @@ void render() {
 	deltaTime = timeValue - lastFrame;
 	lastFrame = timeValue;
 
-	lightPos.x = 3.2f*cos(timeValue);
-	lightPos.z = 3.2f*sin(timeValue);
-	glm::vec4 temp = camera.GetViewMatrix()*lightPos;
-	temp /= temp.w;
+	lightPos.x = 2.0f*cos(timeValue);
+	lightPos.z = 2.0f*sin(timeValue);
+	glm::mat4 view = camera.GetViewMatrix();
+	glm::vec3 viewPos = camera.Position;
+
+	vector<glm::mat4> shadowTransforms;
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+	shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+
+
+
+	//PHASE 0: Rendering to shadow map
+	glViewport(0, 0, shadowWidth, shadowHeight);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	shadowShader.use();
+	for (unsigned int i = 0; i < 6; ++i)
+		shadowShader.setMatf4("shadowMatrices[" + std::to_string(i) + "]", glm::value_ptr(shadowTransforms[i]));
+	shadowShader.setVec3("lightPos", lightPos.x, lightPos.y, lightPos.z);
+	drawScene(shadowShader);
 
 
 
 	//PHASE 1: Render the scene geometry to GBUFFER
+	glViewport(0, 0, Width, Height);
 	glBindFramebuffer(GL_FRAMEBUFFER, gbufferFBO);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glm::mat4 view = camera.GetViewMatrix();
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
 	sceneShader.use();
 	sceneShader.setMatf4("view", glm::value_ptr(view));
-	// nanosuit and dresser models 
-	glEnable(GL_CULL_FACE);
-	sceneShader.setMatf4("model", glm::value_ptr(models[1].matrix));
-	models[1].model.Draw(sceneShader);
-	sceneShader.setMatf4("model", glm::value_ptr(models[2].matrix));
-	models[2].model.Draw(sceneShader);
-	// room cube and deagle
-	glDisable(GL_CULL_FACE);
-	sceneShader.setMatf4("model", glm::value_ptr(models[0].matrix));
-	models[0].model.Draw(sceneShader);
-	sceneShader.setMatf4("model", glm::value_ptr(models[3].matrix));
-	models[3].model.Draw(sceneShader);
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, shadowCubeMap);
+	drawScene(sceneShader);
 	if (arg == 1) {
 		argTex = gAlbedo;
 		dispShader.use();
@@ -355,29 +371,32 @@ void render() {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, gPosition);
+	glBindTexture(GL_TEXTURE_2D, gPositionModel);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, gNormal);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, gAlbedo);
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, shadowCubeMap);
 	lightingShader.use();
-	lightingShader.setVec3("lightPos", temp.x, temp.y, temp.z);
+	lightingShader.setVec3("lightPos", lightPos.x, lightPos.y, lightPos.z);
+	lightingShader.setVec3("viewPos", viewPos.x, viewPos.y, viewPos.z);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	goto RENDER_END;
 
 
 
 	//PHASE LAST: Displaying on quad:-
-	PHASE_LAST:
+PHASE_LAST:
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, argTex);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	RENDER_END:
+RENDER_END:
 	glfwPollEvents();
 	glfwSwapBuffers(window);
 }
@@ -429,10 +448,19 @@ void initFBO() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedo, 0);
+	// Model view position color buffer
+	glGenTextures(1, &gPositionModel);
+	glBindTexture(GL_TEXTURE_2D, gPositionModel);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, Width, Height, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gPositionModel, 0);
 
 	// tell OpenGL which color attachments we'll use for rendering 
-	unsigned int attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
-	glDrawBuffers(3, attachments);
+	unsigned int attachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
+	glDrawBuffers(4, attachments);
 	// create and attach depth buffer (renderbuffer)
 	unsigned int rboDepth;
 	glGenRenderbuffers(1, &rboDepth);
@@ -490,6 +518,28 @@ void initFBO() {
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 	cout << "SSAO Blur Framebuffer not complete!" << endl;
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+	//Shadow map frame buffer:-
+	glGenFramebuffers(1, &shadowFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	glGenTextures(1, &shadowCubeMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, shadowCubeMap);
+	for (int i = 0; i < 6; ++i)
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT,
+			shadowWidth, shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowCubeMap, 0);
+	//no need to render to a color buffer:-
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		cout << "Shadow Map Framebuffer not complete!" << endl;
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 float lerp(float a, float b, float f) {
@@ -508,6 +558,13 @@ void initUniforms() {
 
 	glm::mat4 projection = glm::perspective(glm::radians(45.0f), ((float)Width) / Height, 0.1f, 100.0f);
 	sceneShader.setMatf4("projection", glm::value_ptr(projection));
+
+	shadowProj = glm::perspective(glm::radians(90.0f),
+		((float)shadowWidth) / shadowHeight, 1.0f, 25.0f);
+
+	shadowShader.use();
+	shadowShader.setFloat("farPlane", 25.0f);
+
 
 	SSAOShader.use();
 	SSAOShader.setMatf4("projection", glm::value_ptr(projection));
@@ -528,10 +585,12 @@ void initUniforms() {
 	dispShader.setInt("albedo", 0);
 
 	lightingShader.use();
-	lightingShader.setInt("gPosition", 0);
+	lightingShader.setInt("gPositionModel", 0);
 	lightingShader.setInt("gNormal", 1);
 	lightingShader.setInt("gAlbedo", 2);
 	lightingShader.setInt("ssao", 3);
+	lightingShader.setInt("shadowMap", 4);
+	lightingShader.setFloat("farPlane", 25.0f);
 
 
 	glBindVertexArray(quadVAO);
@@ -557,4 +616,20 @@ void generateKernels() {
 		sample *= scale;
 		glBufferSubData(GL_SHADER_STORAGE_BUFFER, i * 4 * sizeof(float), 3 * sizeof(float), glm::value_ptr(sample));
 	}
+}
+
+void drawScene(Shader shader) {
+	shader.use();
+	// nanosuit and dresser models 
+	glEnable(GL_CULL_FACE);
+	shader.setMatf4("model", glm::value_ptr(models[1].matrix));
+	models[1].model.Draw(shader);
+	shader.setMatf4("model", glm::value_ptr(models[2].matrix));
+	models[2].model.Draw(shader);
+	// room cube and deagle
+	glDisable(GL_CULL_FACE);
+	shader.setMatf4("model", glm::value_ptr(models[0].matrix));
+	models[0].model.Draw(shader);
+	shader.setMatf4("model", glm::value_ptr(models[3].matrix));
+	models[3].model.Draw(shader);
 }
