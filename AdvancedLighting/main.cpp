@@ -41,7 +41,7 @@ float mouseX = 0.0f;
 float mouseY = 0.0f;
 bool firstMouse = true;
 
-glm::vec3 lightPos(2.0f, 2.0f, 0.0f);
+glm::vec3 lightPos(2.9f, 2.9f, 0.0f);
 int arg = 0, argTex;
 
 
@@ -285,8 +285,8 @@ void render() {
 	deltaTime = timeValue - lastFrame;
 	lastFrame = timeValue;
 
-	lightPos.x = 2.0f*cos(timeValue);
-	lightPos.z = 2.0f*sin(timeValue);
+	lightPos.x = 2.9f*cos(timeValue);
+	lightPos.z = 2.9f*sin(timeValue);
 	glm::mat4 view = camera.GetViewMatrix();
 	glm::vec3 viewPos = camera.Position;
 
@@ -560,7 +560,7 @@ void initUniforms() {
 	sceneShader.setMatf4("projection", glm::value_ptr(projection));
 
 	shadowProj = glm::perspective(glm::radians(90.0f),
-		((float)shadowWidth) / shadowHeight, 1.0f, 25.0f);
+		((float)shadowWidth) / shadowHeight, 0.5f, 25.0f);
 
 	shadowShader.use();
 	shadowShader.setFloat("farPlane", 25.0f);
