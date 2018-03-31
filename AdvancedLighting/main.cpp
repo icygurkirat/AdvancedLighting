@@ -1,6 +1,5 @@
 #define TITLE "Advanced Lighting"
 #define STB_IMAGE_IMPLEMENTATION
-#define SSAOKernels 25
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -28,6 +27,9 @@ unsigned int gbufferFBO, gPosition, gNormal, gAlbedo;
 unsigned int ssaoFBO, ssaoBlurFBO;
 unsigned int ssaoColorBuffer, ssaoColorBufferBlur;
 unsigned int noiseTexture;	//random rotation vectors to reduce banding
+//SSAO shader params;
+float ssaoRadius = 0.5f, ssaoEps = 0.025f;
+int SSAOKernels = 25;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -35,7 +37,8 @@ float mouseX = 0.0f;
 float mouseY = 0.0f;
 bool firstMouse = true;
 
-glm::vec4 lightPos(1.2f, 10.0f, 2.0f, 1.0f);
+glm::vec4 lightPos(3.2f, 3.2f, 0.0f, 1.0f);
+int arg = 0, argTex;
 
 
 void init();
@@ -44,6 +47,7 @@ void render();
 void CreateVBO();
 void initFBO();
 void initUniforms();
+void generateKernels();
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 float lerp(float a, float b, float f);
 Shader sceneShader, SSAOShader, blurShader, lightingShader, dispShader;
@@ -87,12 +91,67 @@ void processInput(GLFWwindow *window) {
 		camera.ProcessKeyboard(LEFT, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		camera.ProcessKeyboard(RIGHT, deltaTime);
+	if (glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS)
+		arg = 0;
+	if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+		arg = 1;
+	if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+		arg = 2;
+	if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS)
+		arg = 3;
+	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+		cout << "# of kernels: " << SSAOKernels << "\t Kernel radius: " << ssaoRadius;
+		cout << "\t Float comparison epsilon: " << ssaoEps << endl;
+		cout << "Enter 1, 2 or 3 in terminal to change corresponding param" << endl;
+		int x;
+		cin >> x;
+		switch (x) {
+		case 1:
+			cout << "Enter new value of # of samples" << endl;
+			cin >> x;
+			SSAOKernels = x;
+			SSAOShader.use();
+			generateKernels();
+			SSAOShader.setInt("kernelSize", x);
+			break;
+		case 2:
+			SSAOShader.use();
+			float y;
+			cout << "Enter new value of radius" << endl;
+			cin >> y;
+			SSAOShader.setFloat("radius", y);
+			ssaoRadius = y;
+			break;
+		case 3:
+			SSAOShader.use();
+			cout << "Enter new value of eps" << endl;
+			cin >> y;
+			SSAOShader.setFloat("eps", y);
+			ssaoEps = y;
+			break;
+		default:
+			cout << "Invalid input....Exiting edit window" << endl;
+		}
+	}
 }
 
 int main() {
 	init();
+	cout << "Creating FrameBuffers for multiple shader passes...";
 	initFBO();
+	cout << "DONE" << endl<<"Initializing shader uniforms...";
 	initUniforms();
+	cout << "DONE" << endl << endl;
+
+	cout << "---------------------------------------------------" << endl;
+	cout << "Press these keys when rendering window is active, for the corresponding changes" << endl;
+	cout << "[0]: All shaders (Albedo + SSAO + Illumination)" << endl;
+	cout << "[1]: Gbuffer albedo pass. Simply displays the 3D models" << endl;
+	cout << "[2]: SSAO shader pass. Dark regions represent occlusion" << endl;
+	cout << "[3]: SSAO Blur pass. Blurring of SSAO Frame buffer" << endl;
+	cout << "[P]: Change SSAO parameters" << endl;
+	cout << "Illumination params can be changed directly in lighting.fs shader file" << endl;
+	cout << "---------------------------------------------------" << endl;
 
 	//rendering loop
 	while (!glfwWindowShouldClose(window)) {
@@ -107,6 +166,7 @@ int main() {
 }
 
 void init() {
+	cout << "Creating OpenGL context...";
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -119,6 +179,7 @@ void init() {
 		exit(EXIT_FAILURE);
 	}
 	glfwMakeContextCurrent(window);
+	cout << "DONE" << endl;
 
 
 	//GLAD Initialization:-
@@ -126,6 +187,7 @@ void init() {
 		cout << "Failed to initialize GLAD" << endl;
 		exit(EXIT_FAILURE);
 	}
+	cout << "GLAD Initialized" << endl;
 
 
 	glViewport(0, 0, Width, Height);
@@ -144,14 +206,17 @@ void init() {
 
 	CreateVBO();
 
+	cout << "Loading Shaders...";
 	sceneShader = Shader("resources\\shaders\\scene.vs", "resources\\shaders\\scene.fs");
 	SSAOShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\ssao.fs");
 	blurShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\blur.fs");
 	lightingShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\lighting.fs");
 	dispShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\drawQuad.fs");
+	cout << "DONE\n";
 
 	//Loading all the models:-
 	//stbi_set_flip_vertically_on_load(true);
+	cout << "Loading 3D Models...";
 	models[0] = ModMat("resources\\3D_Models\\Box\\box.obj");
 	models[0].scale = 7.0f;
 	models[0].update();
@@ -179,6 +244,7 @@ void init() {
 	models[3].y = -1.55f;
 	models[3].z = -2.7f;
 	models[3].update();
+	cout << "DONE" << endl;
 }
 
 void resize(GLFWwindow* window, int width, int height) {
@@ -213,8 +279,10 @@ void render() {
 	deltaTime = timeValue - lastFrame;
 	lastFrame = timeValue;
 
-	lightPos.x = 5.0f*cos(timeValue);
-	lightPos.z = 5.0f*sin(timeValue);
+	lightPos.x = 3.2f*cos(timeValue);
+	lightPos.z = 3.2f*sin(timeValue);
+	glm::vec4 temp = camera.GetViewMatrix()*lightPos;
+	temp /= temp.w;
 
 
 
@@ -237,6 +305,13 @@ void render() {
 	models[0].model.Draw(sceneShader);
 	sceneShader.setMatf4("model", glm::value_ptr(models[3].matrix));
 	models[3].model.Draw(sceneShader);
+	if (arg == 1) {
+		argTex = gAlbedo;
+		dispShader.use();
+		dispShader.setBool("gray", false);
+		glBindVertexArray(quadVAO);
+		goto PHASE_LAST;
+	}
 	
 
 	
@@ -253,6 +328,12 @@ void render() {
 	glBindTexture(GL_TEXTURE_2D, noiseTexture);
 	SSAOShader.use();
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	if (arg == 2) {
+		argTex = ssaoColorBuffer;
+		dispShader.use();
+		dispShader.setBool("gray", true);
+		goto PHASE_LAST;
+	}
 
 
 	//PHASE 3: SSAO Blur stage:-
@@ -262,6 +343,12 @@ void render() {
 	glBindTexture(GL_TEXTURE_2D, ssaoColorBuffer);
 	blurShader.use();
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	if (arg == 3) {
+		argTex = ssaoColorBufferBlur;
+		dispShader.use();
+		dispShader.setBool("gray", true);
+		goto PHASE_LAST;
+	}
 
 
 	//PHASE 4: Blinn-Phong illumination:- 
@@ -276,24 +363,21 @@ void render() {
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
 	lightingShader.use();
-	glm::vec4 temp = camera.GetViewMatrix()*lightPos;
-	temp /= temp.w;
 	lightingShader.setVec3("lightPos", temp.x, temp.y, temp.z);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-	glfwPollEvents();
-	glfwSwapBuffers(window);
-	return;
+	goto RENDER_END;
+
 
 
 	//PHASE LAST: Displaying on quad:-
+	PHASE_LAST:
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
-	dispShader.use();
+	glBindTexture(GL_TEXTURE_2D, argTex);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	
+	RENDER_END:
 	glfwPollEvents();
 	glfwSwapBuffers(window);
 }
@@ -364,27 +448,10 @@ void initFBO() {
 	//PHASE 2: Aplying SSAO:-
 	//UBO for storing kernel samples
 	glGenBuffers(1, &kernelSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, kernelSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, SSAOKernels * 4 * sizeof(float), NULL, GL_STATIC_DRAW);
-	//generating sample kernels:-
+	generateKernels();
 	uniform_real_distribution<float> randomFloats(0.0, 1.0); // random floats between 0.0 - 1.0
 	default_random_engine generator;
-	SSAOShader.use();
-	for (unsigned int i = 0; i < SSAOKernels; ++i) {
-		glm::vec3 sample(
-			randomFloats(generator) * 2.0 - 1.0,
-			randomFloats(generator) * 2.0 - 1.0,
-			randomFloats(generator)
-		);
-		sample = glm::normalize(sample);
-		sample *= randomFloats(generator);
-		float scale = ((float)i) / SSAOKernels;
-		scale = lerp(0.1f, 1.0f, scale * scale);
-		sample *= scale;
-		glBufferSubData(GL_SHADER_STORAGE_BUFFER, i * 4 * sizeof(float), 3 * sizeof(float), glm::value_ptr(sample));
-	}
-
-	std::vector<glm::vec3> ssaoNoise;
+	vector<glm::vec3> ssaoNoise;
 	for (unsigned int i = 0; i < 16; i++) {
 		glm::vec3 noise(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, 0.0f); // rotate around z-axis (in tangent space)
 		ssaoNoise.push_back(noise);
@@ -450,8 +517,8 @@ void initUniforms() {
 	SSAOShader.setInt("kernelSize", SSAOKernels);
 	// tile noise texture over screen based on screen dimensions divided by noise size
 	SSAOShader.setVec2("noiseScale", Width / 4.0, Height / 4.0);
-	SSAOShader.setFloat("radius", 0.5);		//Kernel radius
-	SSAOShader.setFloat("eps", 0.025);		//float comparison epsilon
+	SSAOShader.setFloat("radius", ssaoRadius);		//Kernel radius
+	SSAOShader.setFloat("eps", ssaoEps);		//float comparison epsilon
 
 	blurShader.use();
 	blurShader.setInt("blurKernal", 4);
@@ -469,4 +536,25 @@ void initUniforms() {
 
 	glBindVertexArray(quadVAO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, kernelSBO);
+}
+
+void generateKernels() {
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, kernelSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, SSAOKernels * 4 * sizeof(float), NULL, GL_STATIC_DRAW);
+	//generating sample kernels:-
+	uniform_real_distribution<float> randomFloats(0.0, 1.0); // random floats between 0.0 - 1.0
+	default_random_engine generator;
+	for (unsigned int i = 0; i < SSAOKernels; ++i) {
+		glm::vec3 sample(
+			randomFloats(generator) * 2.0 - 1.0,
+			randomFloats(generator) * 2.0 - 1.0,
+			randomFloats(generator)
+		);
+		sample = glm::normalize(sample);
+		sample *= randomFloats(generator);
+		float scale = ((float)i) / SSAOKernels;
+		scale = lerp(0.1f, 1.0f, scale * scale);
+		sample *= scale;
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, i * 4 * sizeof(float), 3 * sizeof(float), glm::value_ptr(sample));
+	}
 }

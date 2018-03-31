@@ -16,7 +16,7 @@ void main()
 	mat4 trans = view * model;
 
     vec4 viewPos = trans * vec4(aPos, 1.0);
-    FragPos = viewPos.xyz; 
+    FragPos = (viewPos.xyz)/viewPos.w; 
     
     //as all transformations are global scaling or translation or rotation, we can directly
     //multiply by this matrix to get normal vector. else multiply by transpose((trans)^-1)
