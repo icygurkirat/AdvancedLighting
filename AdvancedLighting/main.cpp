@@ -22,7 +22,7 @@ unsigned int quadVAO, quadVBO;	//quad for deferred shading
 unsigned int kernelSBO;			//SBO for storing kernel samples
 //SSAO Variables:-
 //SSAO first pass: frame buffer and its data
-unsigned int gbufferFBO, gPosition, gNormal, gAlbedo, gPositionModel;	
+unsigned int gbufferFBO, gPosition, gNormal, gAlbedo, gPositionModel, gNormalModel;	
 //SSAO second and third pass:-
 unsigned int ssaoFBO, ssaoBlurFBO;
 unsigned int ssaoColorBuffer, ssaoColorBufferBlur;
@@ -373,7 +373,7 @@ void render() {
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, gPositionModel);
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, gNormal);
+	glBindTexture(GL_TEXTURE_2D, gNormalModel);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, gAlbedo);
 	glActiveTexture(GL_TEXTURE3);
@@ -457,10 +457,17 @@ void initFBO() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gPositionModel, 0);
+	// normal Model color buffer
+	glGenTextures(1, &gNormalModel);
+	glBindTexture(GL_TEXTURE_2D, gNormalModel);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, Width, Height, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D, gNormalModel, 0);
 
 	// tell OpenGL which color attachments we'll use for rendering 
-	unsigned int attachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
-	glDrawBuffers(4, attachments);
+	unsigned int attachments[5] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3, GL_COLOR_ATTACHMENT4 };
+	glDrawBuffers(5, attachments);
 	// create and attach depth buffer (renderbuffer)
 	unsigned int rboDepth;
 	glGenRenderbuffers(1, &rboDepth);
@@ -585,7 +592,7 @@ void initUniforms() {
 	dispShader.setInt("albedo", 0);
 
 	lightingShader.use();
-	lightingShader.setInt("gPositionModel", 0);
+	lightingShader.setInt("gPosition", 0);
 	lightingShader.setInt("gNormal", 1);
 	lightingShader.setInt("gAlbedo", 2);
 	lightingShader.setInt("ssao", 3);

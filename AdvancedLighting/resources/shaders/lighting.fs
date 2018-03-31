@@ -3,7 +3,7 @@ out vec4 FragColor;
   
 in vec2 TexCoords;
 
-uniform sampler2D gPositionModel;
+uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedo;
 uniform sampler2D ssao;
@@ -17,7 +17,7 @@ uniform float farPlane;
 void main()
 {             
     // retrieve data from gbuffer (deferred shading pass)
-    vec3 FragPos = texture(gPositionModel, TexCoords).rgb;
+    vec3 FragPos = texture(gPosition, TexCoords).rgb;
     vec3 Normal = texture(gNormal, TexCoords).rgb;
     vec3 albedo = texture(gAlbedo, TexCoords).rgb;
 
@@ -26,12 +26,12 @@ void main()
     
 
     // blinn-phong:-
-    vec3 ambient = vec3(vec3(0.35f, 0.35f, 0.35f) * albedo * AmbientOcclusion);
+    vec3 ambient = vec3(vec3(0.5f, 0.5f, 0.5f) * albedo * AmbientOcclusion);
 
     vec3 lightDir = lightPos - FragPos;
     float currentDepth = length(lightDir);
     lightDir = normalize(lightDir);
-    vec3 diffuse = max(dot(Normal, lightDir), 0.0) * albedo * vec3(0.7f, 0.7f, 0.7f);
+    vec3 diffuse = max(dot(Normal, lightDir), 0.0) * albedo * vec3(0.5f, 0.5f, 0.5f);
 
     vec3 viewDir  = normalize(viewPos - FragPos); 
     vec3 halfwayDir = normalize(lightDir + viewDir);  
