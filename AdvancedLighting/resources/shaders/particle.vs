@@ -7,6 +7,9 @@ layout (location = 3) in float aSize;
 layout (location = 4) in float aTime;
 
 out vec2 TexCoords;
+out float cam2center;
+
+uniform vec3 camPos;
 uniform float maxLife;
 uniform mat4 view;
 uniform mat4 proj;
@@ -20,6 +23,8 @@ void main()
 	TexCoords.x = (col + aTexCoords.x) / 8.0;
 	TexCoords.y = (row + aTexCoords.y) / 8.0;
 
+	vec3 temp = camPos - aCenter;
+	cam2center = dot(temp, temp);
 
 	vec4 Pos = proj * view * vec4((aCenter + aSize * aPos), 1.0);
 	//vec4 Pos = vec4((aCenter + aSize * aPos), 1.0);

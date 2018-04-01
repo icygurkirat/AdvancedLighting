@@ -449,6 +449,7 @@ PHASE_PHONG:
 	glBindTexture(GL_TEXTURE_2D, gPosition);
 	particleRender.use();
 	particleRender.setMatf4("view", glm::value_ptr(view));
+	particleRender.setVec3("camPos", viewPos.x, viewPos.y, viewPos.z);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, NumParticles);
 	goto RENDER_END;
 
@@ -716,6 +717,8 @@ void initUniforms() {
 	particleRender.setInt("gPosition", 1);
 	particleRender.setFloat("maxLife", ParticleLife);
 	particleRender.setMatf4("proj", glm::value_ptr(projection));
+	particleRender.setInt("screenWidth", Width);
+	particleRender.setInt("screenHeight", Height);
 
 	particleCompute.use();
 	particleCompute.setFloat("maxLife", ParticleLife);
