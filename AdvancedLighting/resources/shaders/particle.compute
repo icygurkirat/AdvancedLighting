@@ -1,0 +1,27 @@
+#version 430 core
+
+layout(std430, binding = 2) buffer Model {
+	float params[];
+};
+
+layout(local_size_x = 1, local_size_y = 1) in;
+
+uniform float deltaTime;
+uniform float maxLife;
+
+void main() {
+	uint id = gl_GlobalInvocationID.x * 8;
+
+	if(params[id] > maxLife){
+		params[id+6] = -1.0;
+		return;
+	}
+	params[id] = params[id] + deltaTime;
+	vec3 u = vec3(params[id+1],params[id+2],params[id+3]);
+	vec3 s = vec3(params[id+4],params[id+5],params[id+6]);
+	s = u*params[id] + 0.5*vec3(0.0,0.1,0.0)*params[id]*params[id];
+	params[id+4] = s.x;
+	params[id+5] = s.y;
+	params[id+6] = s.z;
+
+}

@@ -28,13 +28,21 @@ unsigned int gbufferFBO, gPosition, gNormal, gAlbedo, gPositionModel, gNormalMod
 unsigned int ssaoFBO, ssaoBlurFBO;
 unsigned int ssaoColorBuffer, ssaoColorBufferBlur;
 unsigned int noiseTexture;	//random rotation vectors to reduce banding
-//SSAO shader params;
+//SSAO shader params
 float ssaoRadius = 0.5f, ssaoEps = 0.025f;
 int SSAOKernels = 25;
 //Shadow map variables
 unsigned int shadowCubeMap, shadowFBO;
 unsigned int shadowWidth = Width, shadowHeight = Height;
 glm::mat4 shadowProj;
+//Particle System Params
+int NumParticles = 100, lastUnused = 0;
+float ParticleLife = 2.0;	//in seconds
+unsigned int smokeTex, particleSBO;
+
+//Probability distribution and sampler
+uniform_real_distribution<float> randomFloats(0.0, 1.0); // random floats between 0.0 - 1.0
+default_random_engine generator;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -54,10 +62,12 @@ void CreateVBO();
 void initFBO();
 void initUniforms();
 void generateKernels();
+void updateParticles();
 void drawScene(Shader shader);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 float lerp(float a, float b, float f);
 Shader sceneShader, SSAOShader, blurShader, lightingShader, dispShader, shadowShader;
+Shader particleCompute, particleRender;
 Camera camera;
 
 
@@ -238,6 +248,8 @@ void init() {
 
 	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	//Wireframe mode:-
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -254,6 +266,8 @@ void init() {
 	lightingShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\lighting.fs");
 	dispShader = Shader("resources\\shaders\\ssao.vs", "resources\\shaders\\drawQuad.fs");
 	shadowShader = Shader("resources\\shaders\\shadow.vs", "resources\\shaders\\shadow.fs", "resources\\shaders\\shadow.gs");
+	particleCompute.computeShader("resources\\shaders\\particle.compute");
+	particleRender = Shader("resources\\shaders\\particle.vs", "resources\\shaders\\particle.fs");
 	cout << "DONE\n";
 
 	//Loading all the models:-
@@ -426,6 +440,16 @@ PHASE_PHONG:
 	lightingShader.setVec3("lightPos", lightPos.x, lightPos.y, lightPos.z);
 	lightingShader.setVec3("viewPos", viewPos.x, viewPos.y, viewPos.z);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	//PHASE 0: Render particles
+	updateParticles();
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, smokeTex);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, gPosition);
+	particleRender.use();
+	particleRender.setMatf4("trans", glm::value_ptr(view));
+	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, NumParticles);
 	goto RENDER_END;
 
 
@@ -446,10 +470,10 @@ RENDER_END:
 void CreateVBO() {
 	float quadVertices[] = {
 		// positions        // texture Coords
-		-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
-		-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-		1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
-		1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+		-1.0f,  1.0f, 0.5f, 0.0f, 1.0f,
+		-1.0f, -1.0f, 0.5f, 0.0f, 0.0f,
+		1.0f,  1.0f, 0.5f, 1.0f, 1.0f,
+		1.0f, -1.0f, 0.5f, 1.0f, 0.0f,
 	};
 
 	glGenVertexArrays(1, &quadVAO);
@@ -461,6 +485,52 @@ void CreateVBO() {
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
+
+
+	//Loading Smoke Texture
+	glGenTextures(1, &smokeTex);
+	glBindTexture(GL_TEXTURE_2D, smokeTex);
+	// set the texture wrapping/filtering options (on the currently bound texture object)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// load and generate the texture
+	int a, b, c;
+	unsigned char *image = stbi_load("resources\\ParticleAtlas.png", &a, &b, &c, 0);
+	if (image) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, a, b, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+	else
+		cout << "Could not load the Particle Atlas texture image" << endl;
+	stbi_image_free(image);
+
+	//Buffer object for particle data:-
+	glGenBuffers(1, &particleSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSBO);
+	//initial data: all dead particles
+	float *temp = new float[NumParticles * 8];
+	for (int i = 0; i < NumParticles * 8; i++)
+		temp[i] = ParticleLife + 1.0;
+	glBufferData(GL_SHADER_STORAGE_BUFFER, NumParticles * 8 * sizeof(float), temp, GL_STREAM_DRAW);
+	free(temp);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, particleSBO);
+	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+
+	glBindBuffer(GL_ARRAY_BUFFER, particleSBO);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(4*sizeof(float)));
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(7 * sizeof(float)));
+	glEnableVertexAttribArray(3);
+	glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(4);
+
+	glVertexAttribDivisor(0, 0);
+	glVertexAttribDivisor(1, 0);
+	glVertexAttribDivisor(2, 1);
+	glVertexAttribDivisor(3, 1);
+	glVertexAttribDivisor(4, 1);
 }
 
 void initFBO() {
@@ -526,8 +596,6 @@ void initFBO() {
 	//UBO for storing kernel samples
 	glGenBuffers(1, &kernelSBO);
 	generateKernels();
-	uniform_real_distribution<float> randomFloats(0.0, 1.0); // random floats between 0.0 - 1.0
-	default_random_engine generator;
 	vector<glm::vec3> ssaoNoise;
 	for (unsigned int i = 0; i < 16; i++) {
 		glm::vec3 noise(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, 0.0f); // rotate around z-axis (in tangent space)
@@ -643,6 +711,15 @@ void initUniforms() {
 	lightingShader.setBool("arg1", arg1);
 	lightingShader.setBool("arg2", arg2);
 
+	particleRender.use();
+	particleRender.setInt("smoke", 0);
+	particleRender.setInt("gPosition", 1);
+	particleRender.setFloat("maxLife", ParticleLife);
+	particleRender.setMatf4("proj", glm::value_ptr(projection));
+
+	particleCompute.use();
+	particleCompute.setFloat("maxLife", ParticleLife);
+
 
 	glBindVertexArray(quadVAO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, kernelSBO);
@@ -652,8 +729,6 @@ void generateKernels() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, kernelSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, SSAOKernels * 4 * sizeof(float), NULL, GL_STATIC_DRAW);
 	//generating sample kernels:-
-	uniform_real_distribution<float> randomFloats(0.0, 1.0); // random floats between 0.0 - 1.0
-	default_random_engine generator;
 	for (unsigned int i = 0; i < SSAOKernels; ++i) {
 		glm::vec3 sample(
 			randomFloats(generator) * 2.0 - 1.0,
@@ -683,4 +758,39 @@ void drawScene(Shader shader) {
 	models[0].model.Draw(shader);
 	shader.setMatf4("model", glm::value_ptr(models[3].matrix));
 	models[3].model.Draw(shader);
+}
+
+void updateParticles() {
+	//generate new particles
+	int deltaN = (int)(((float)NumParticles / ParticleLife)*deltaTime);
+	deltaN = max(1, deltaN);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSBO);
+	for (int i = 1; i <= deltaN; i++) {
+		float data[8];
+		//time since birth
+		data[0] = 0.0;	
+		//initial velocity
+		data[1] = (randomFloats(generator) * 2.0 - 1.0) / 30.0;
+		data[2] = 0.0;// (randomFloats(generator) * 2.0 - 1.0) / 10.0;
+		data[3] = 0.0;
+		//current position
+		data[4] = 0.0;
+		data[5] = 0.0;
+		data[6] = 0.0;
+		//size
+		data[7] = (randomFloats(generator)) / 10.0;
+
+		//updating Storage Buffer
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, lastUnused * 8 * sizeof(float), 8 * sizeof(float), &data);
+
+		lastUnused++;
+		if (lastUnused == NumParticles)
+			lastUnused = 0;
+	}
+
+	//updating the positions of all particles
+	particleCompute.use();
+	particleCompute.setFloat("deltaTime", deltaTime);
+	glDispatchCompute(NumParticles, 1, 1);
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
