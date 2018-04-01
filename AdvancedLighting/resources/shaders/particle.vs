@@ -27,11 +27,10 @@ void main()
 	cam2center = dot(temp, temp);
 
 	vec4 Pos = proj * view * vec4((aCenter + aSize * aPos), 1.0);
-	//vec4 Pos = vec4((aCenter + aSize * aPos), 1.0);
 	//vec4 Pos = proj * view * vec4(aCenter, 1.0);
 	//Pos /= Pos.w;
-	//Pos = vec4(Pos.xyz + aSize * aPos, 1.0);
+	//Pos = vec4(Pos.xyz + inversesqrt(cam2center) * aSize * aPos, 1.0);
 
-	Pos.z = aCenter.z<=-0.9 ? 1.0*Pos.w: 0.2*Pos.w;
+	Pos.z = aCenter.z<=-24.0 ? 1.0*Pos.w: 0.2*Pos.w;
 	gl_Position = Pos; 
 }

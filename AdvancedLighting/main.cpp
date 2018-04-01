@@ -52,7 +52,7 @@ bool firstMouse = true;
 
 glm::vec3 lightPos(2.9f, 2.9f, 0.0f);
 int arg = 0, argTex;
-bool arg1 = true, arg2 = true;
+bool arg1 = true, arg2 = true, arg3 = true;
 
 
 void init();
@@ -136,6 +136,10 @@ void processInput(GLFWwindow *window) {
 		lightingShader.use();
 		lightingShader.setBool("arg2", arg2);
 	}
+	if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS)
+		arg3 = true;
+	if (glfwGetKey(window, GLFW_KEY_9) == GLFW_PRESS)
+		arg3 = false;
 	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
 		cout << "# of kernels: " << SSAOKernels << "\t Kernel radius: " << ssaoRadius;
 		cout << "\t Float comparison epsilon: " << ssaoEps << endl;
@@ -178,9 +182,13 @@ int main() {
 	file >> Width;
 	file >> Height;
 	file >> shadowWidth;
+	file >> NumParticles;
+	file >> ParticleLife;
 	shadowHeight = shadowWidth;
 	cout << "Screen Size: " << Width << "x" << Height << endl;
 	cout << "Shadow Map resolution: " << shadowWidth << "x" << shadowHeight << endl;
+	cout << "Number of particles: " << NumParticles << endl;
+	cout << "Life of each particle: " << ParticleLife << " seconds" << endl;
 	file.close();
 
 	init();
@@ -192,14 +200,16 @@ int main() {
 
 	cout << "---------------------------------------------------" << endl;
 	cout << "Press these keys when rendering window is active, for the corresponding changes" << endl;
-	cout << "[0]: All shaders (Albedo + SSAO + Illumination)" << endl;
 	cout << "[1]: Gbuffer albedo pass. Simply displays the 3D models" << endl;
 	cout << "[2]: SSAO shader pass. Dark regions represent occlusion" << endl;
 	cout << "[3]: SSAO Blur pass. Blurring of SSAO Frame buffer" << endl;
+	cout << "[0]: All shaders (Albedo + SSAO + Illumination + Particle System). Press the following keys to modify this framebuffer" << endl;
 	cout << "[4]: Enable SSAO" << endl;
 	cout << "[5]: Disbale SSAO" << endl;
 	cout << "[6]: Enable Shadows" << endl;
 	cout << "[7]: Disable Shadows" << endl;
+	cout << "[8]: Enable Particle System" << endl;
+	cout << "[9]: Disable Particle System" << endl;
 	cout << "[P]: Change SSAO parameters" << endl;
 	cout << "Illumination params can be changed directly in lighting.fs shader file" << endl;
 	cout << "---------------------------------------------------" << endl;
@@ -442,15 +452,17 @@ PHASE_PHONG:
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 	//PHASE 0: Render particles
-	updateParticles();
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, smokeTex);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, gPosition);
-	particleRender.use();
-	particleRender.setMatf4("view", glm::value_ptr(view));
-	particleRender.setVec3("camPos", viewPos.x, viewPos.y, viewPos.z);
-	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, NumParticles);
+	if (arg3) {
+		updateParticles();
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, smokeTex);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gPosition);
+		particleRender.use();
+		particleRender.setMatf4("view", glm::value_ptr(view));
+		particleRender.setVec3("camPos", viewPos.x, viewPos.y, viewPos.z);
+		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, NumParticles);
+	}
 	goto RENDER_END;
 
 
@@ -777,9 +789,9 @@ void updateParticles() {
 		data[2] = 0.0;// (randomFloats(generator) * 2.0 - 1.0) / 10.0;
 		data[3] = 0.0;
 		//current position
-		data[4] = 0.0;
-		data[5] = 0.0;
-		data[6] = 0.0;
+		data[4] = -2.16f;
+		data[5] = -1.45f;
+		data[6] = -2.0f;
 		//size
 		data[7] = (randomFloats(generator)) / 10.0;
 
