@@ -448,7 +448,7 @@ PHASE_PHONG:
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, gPosition);
 	particleRender.use();
-	particleRender.setMatf4("trans", glm::value_ptr(view));
+	particleRender.setMatf4("view", glm::value_ptr(view));
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, NumParticles);
 	goto RENDER_END;
 
