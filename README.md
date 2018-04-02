@@ -52,14 +52,14 @@ As particle system is the final shader, shadow has not currently been implemente
   * particle.vs and particle.fs: Rendering of particles
   * ssao.vs and drawQuad.fs: For rendering intermediate stuff. Used for debugging.
 * __SkyBox__: Needed for SSR (TODO).
-* __args.txt__: Input arguments for project. Syntax "ScreenWidth ScreenHeight ShadowMapSize #OfParticles maxLifeOfParticle"
+* __args.txt__: Input arguments for project. 
 * __ParticleAtlas.png__: Texture showing state of particle with time.
 
 ## Running the executable (EXEC folder)
 * AdvancedLighting.exe is the __Windows 10__ executable of the __Visual Studio 2017__ project.
 * assimp-vc140-mt.dll is dll for assimp library (needed for 3D model loading).
-* The executable uses the "resources" folder for execution Make sure that exe and dll are present in same directory as resources folder or it won't be able to locate the resources. For this, you may either copy the exe and dll to project folder or copy the resources folder to EXEC folder. 
-* For the exe to work, .exe .dll and "resources" folder must be in the same location.
+* The executable uses the "resources" folder for execution. Make sure that exe and dll are present in same directory as resources folder or it won't be able to locate the resources. For this, you may either copy the exe and dll to project folder or copy the resources folder to EXEC folder.
+* Modify "resources/args.txt" to change various rendering params. Keep __lifeOfParticles * ScreenFrameRate <= NumberOfParticles__ otherwise the particles will die sooner.
 * Shaders are loaded and compiled at run-time. So feel free to modify them according to your needs. Example: You can change Phong params in lighting.fs or change update equation in particle.compute
   
 

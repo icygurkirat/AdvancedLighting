@@ -36,7 +36,7 @@ unsigned int shadowCubeMap, shadowFBO;
 unsigned int shadowWidth = Width, shadowHeight = Height;
 glm::mat4 shadowProj;
 //Particle System Params
-int NumParticles = 100, lastUnused = 0;
+int NumParticles = 130, lastUnused = 0;
 float ParticleLife = 2.0;	//in seconds
 unsigned int smokeTex, particleSBO;
 
@@ -179,16 +179,18 @@ void processInput(GLFWwindow *window) {
 int main() {
 	ifstream file;
 	file.open("resources\\args.txt");
-	file >> Width;
-	file >> Height;
-	file >> shadowWidth;
-	file >> NumParticles;
-	file >> ParticleLife;
+	string tmp;
+	file >> tmp; file >> Width;
+	file >> tmp; file >> Height;
+	file >> tmp; file >> shadowWidth;
+	file >> tmp; file >> NumParticles;
+	file >> tmp; file >> ParticleLife;
 	shadowHeight = shadowWidth;
 	cout << "Screen Size: " << Width << "x" << Height << endl;
 	cout << "Shadow Map resolution: " << shadowWidth << "x" << shadowHeight << endl;
 	cout << "Number of particles: " << NumParticles << endl;
 	cout << "Life of each particle: " << ParticleLife << " seconds" << endl;
+	cout << "---------------------------------------------------" << endl;
 	file.close();
 
 	init();
@@ -212,6 +214,7 @@ int main() {
 	cout << "[9]: Disable Particle System" << endl;
 	cout << "[P]: Change SSAO parameters" << endl;
 	cout << "Illumination params can be changed directly in lighting.fs shader file" << endl;
+	cout << "Modify resources/args.txt to change rendering params" << endl;
 	cout << "---------------------------------------------------" << endl;
 
 	//rendering loop
