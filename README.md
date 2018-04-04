@@ -22,20 +22,23 @@ You will need to include and(or) link these libraries as well. You can do that o
 * __Phong__ Illumination and Shading Model. Light source rotates in x-z plane and is positioned near the ceiling of cube. 
 * __Face Culling__ is enabled for drawing 3D Models.
 * __Screen Space Ambient Occlusion__ (SSAO): The sample kernels are stored in Shader Storage Buffer (OpenGL 4.3) as they might be changed due at run time via user input. SSAO is done in 3 rendering passes.
-  * __G-Buffer__: Scene is rendered to a framebuffer with three texture attachments. Per pixel albedo (color), normal vector and position vector is stored in these textures.
+  * __G-Buffer__: Scene is rendered to a framebuffer with three texture attachments. Per pixel albedo (color), normal vector and position vector is stored in these textures as shown in the figure. Normal and position vectors are in view-space.
+  ![](https://drive.google.com/uc?export=download&id=1zKMiu6iG2-nWzT5VCb6JLgs-IduO61Ad)
   * __SSAO pass__: Using normal and position texture from previous pass, occlusion value is evaluated for each pixel using a sample kernel and a random noise rotation.
-  * __SSAO Blur pass__: This buffer is blurred to remove the grainy artifacts of previous pass. 
-* __Shadow Map__: The shadow map (depth buffer w.r.t light source) is stored in a cubemap. For rendering to all six faces in a single pass, __Geometry Shader__ is used. This map is used for checking if a pixel is in shade (during illumination shader).
-* __Particle System__: For drawing fire at Deagle tip, textured quadrilaterals (particles) are drawn in Instanced fashion. Each particle has the following data
-  * aTime: Time since birth.
-  * aCenter: Position of Center.
-  * Initial Velocity. Acceleration is kept constant (0.1 in y direction). Can be modified in particle compute shader.
-  * aSize: Size of quadrilateral (particle).
+  * __SSAO Blur pass__: This buffer is blurred to remove the grainy artifacts of previous pass. The figure below illustrates the process.  
+  ![](https://drive.google.com/uc?export=download&id=1QCWg5K5v4IAvPMbwUkZIeFLohspQUKxz)
+* __Shadow Map__: The shadow map (depth buffer w.r.t light source) is stored in a cubemap. For rendering to all six faces in a single pass, __Geometry Shader__ is used. This map is used for checking if a pixel is in shade (during illumination shader). The figure below shows shadows implemented with this process.
+![](https://drive.google.com/uc?export=download&id=1dbIM5xJR-bdc23dCetyJE5JM_WgUD8zg)
+* __Particle System__: For drawing fire at Deagle tip, textured quadrilaterals (particles) are drawn in Instanced fashion. Each particle has the following data. This data is stored in a Shader Storage Buffer instead of Vertex Buffer as this data will be modified in the course of motion and Vertex Buffer can't be modified by a compute shader.
+  1. aTime: Time since birth.
+  2. aCenter: Position of Center.
+  3. Initial Velocity. Acceleration is kept constant (0.1 in y direction). Can be modified in particle compute shader.
+  4. aSize: Size of quadrilateral (particle).
 
-This data is stored in a Shader Storage Buffer instead of Vertex Buffer as this data will be modified in the course of motion.
-* __Particle Creation__: Particles are created by CPU for each complete render cycle. "lastUnused" particle(s) is the one whose data will be edited. The data is set accordingly to represent fresh particles (example: time = 0, size and velocity are sampled from uniform distribution) and is added to the buffer.
-* __Update Particles__: Update is done using a __Compute Shader__ (OpenGL 4.3 needed). Update, each particle's time (t+delta_t), positions, etc. If time > maxLife tag it as dead so that it is not rendered. As each update is independent, this operation can be easily implemented in GPU. This leads to a significant performance boost as compared to doing the update on CPU.
-* __Instancing__: Particles are drawn in an instanced fashion. Data used in the shader: aTime, aCenter, aSize. The texture is sampled from a __Smoke Atlas__, a texture having 8x8 tiles showing the state of smoke as time progresses. It is in resources/PartcleAtlas.png. So depending on the aTime value, vertex shader decides the texture coordinates to sample from.
+  * __Particle Creation__: Particles are created by CPU for each complete render cycle. "lastUnused" particle(s) is the one whose data will be edited. The data is set accordingly to represent fresh particles (example: time = 0, size and velocity are sampled from uniform distribution) and is added to the buffer.
+  * __Update Particles__: Update is done using a __Compute Shader__ (OpenGL 4.3 needed). Update, each particle's time (t+delta_t), positions, etc. If time > maxLife tag it as dead so that it is not rendered. As each update is independent, this operation can be easily implemented in GPU. This leads to a significant performance boost as compared to doing the update on CPU.
+  * __Instancing__: Particles are drawn in an instanced fashion. Data used in the shader: aTime, aCenter, aSize. The texture is sampled from a __Smoke Atlas__, a texture having 8x8 tiles showing the state of smoke as time progresses. It is in resources/PartcleAtlas.png. So depending on the aTime value, vertex shader decides the texture coordinates to sample from. The figure below is the preview of this system. 
+![](https://drive.google.com/uc?export=download&id=1kPdqYrAgNeqrtcik85_r7YHDd2oCj41F)
 * __Screen Space Reflections__ (SSR): TODO
 
 As particle system is the final shader, shadow has not currently been implemented for it.
