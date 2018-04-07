@@ -37,8 +37,8 @@ You will need to include and(or) link these libraries as well. You can do that o
 
   * __Particle Creation__: Particles are created by CPU for each complete render cycle. "lastUnused" particle(s) is the one whose data will be edited. The data is set accordingly to represent fresh particles (example: time = 0, size and velocity are sampled from uniform distribution) and is added to the buffer.
   * __Update Particles__: Update is done using a __Compute Shader__ (OpenGL 4.3 needed). Update, each particle's time (t+delta_t), positions, etc. If time > maxLife tag it as dead so that it is not rendered. As each update is independent, this operation can be easily implemented in GPU. This leads to a significant performance boost as compared to doing the update on CPU.
-  * __Instancing__: Particles are drawn in an instanced fashion. Data used in the shader: aTime, aCenter, aSize. The texture is sampled from a __Smoke Atlas__, a texture having 8x8 tiles showing the state of smoke as time progresses. It is in resources/PartcleAtlas.png. So depending on the aTime value, vertex shader decides the texture coordinates to sample from. The figure below is the preview of this system. 
-![](https://drive.google.com/uc?export=download&id=1kPdqYrAgNeqrtcik85_r7YHDd2oCj41F)
+  * __Instancing__: Particles are drawn in an instanced fashion. Data used in the shader: aTime, aCenter, aSize. The texture is sampled from a __Smoke Atlas__, a texture having 8x8 tiles showing the state of smoke as time progresses. It is in resources/PartcleAtlas.png. So depending on the aTime value, vertex shader decides the texture coordinates to sample from. The following gif represents this system.
+![](https://drive.google.com/uc?export=download&id=1L5Qz4-0dhnJtuMh2J-I4DI1v1lmQ_uKX)
 * __Screen Space Reflections__ (SSR): TODO
 
 As particle system is the final shader, shadow has not currently been implemented for it.
