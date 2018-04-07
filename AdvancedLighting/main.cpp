@@ -455,17 +455,18 @@ PHASE_PHONG:
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 	//PHASE 0: Render particles
-	if (arg3) {
-		updateParticles();
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, smokeTex);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, gPosition);
-		particleRender.use();
-		particleRender.setMatf4("view", glm::value_ptr(view));
-		particleRender.setVec3("camPos", viewPos.x, viewPos.y, viewPos.z);
-		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, NumParticles);
-	}
+	if (!arg3)
+		goto RENDER_END;
+	updateParticles();
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, smokeTex);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, gPosition);
+	particleRender.use();
+	particleRender.setMatf4("view", glm::value_ptr(view));
+	particleRender.setVec3("camPos", viewPos.x, viewPos.y, viewPos.z);
+	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, NumParticles);
+	
 	goto RENDER_END;
 
 

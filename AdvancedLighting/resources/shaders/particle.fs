@@ -18,7 +18,7 @@ void main(){
 		discard;
 
 	vec4 col = texture( smoke, TexCoords );
-	if(col.a<0.1)
+	if(col.a<0.5)
 		discard;
 	FragColor = col;
 }
