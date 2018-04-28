@@ -16,7 +16,7 @@ The	project is	implemented	in	__Visual	Studio	2017__.	The	scene	consists	of	a te
 
 If	you	simply	wish	to	run	the	executable,	you	only	need	1st (refer last section). 
 
-You will need to include and(or) link these libraries as well. You can do that on changing project properties after opening Visual Studio solution or it can be done directly by modifying AdvancedLighting/AdvancedLighting.vcxproj file. Modify lines 73-78 for include and lib paths. Lines 88 and 111 refer to linking of the lib files.  
+You will need to include and(or) link these libraries as well. You can do that on changing project properties after opening Visual Studio solution or it can be done directly by modifying AdvancedLighting/AdvancedLighting.vcxproj file. Modify lines 73-78 for include and lib paths. Lines 88 and 111 refer to linking of the lib files. For this project, I have directly used the C file of GLAD instead of lib or dll. Modify line 129 to refer to your glad.c file. If using library file, simply remove this line.
 
 ## Project Contents
 * __Phong__ Illumination and Shading Model. Light source rotates in x-z plane and is positioned near the ceiling of cube. 
